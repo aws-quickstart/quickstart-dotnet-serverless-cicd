@@ -271,3 +271,7 @@ Resources:
                       - 's3:GetObjectVersion'
                       - 's3:GetBucketAcl'
                       - 's3:GetBucketLocation'
+Outputs:
+  CodePipelineName:
+    Description: CodePipeline  Name
+    Value: !Ref AppPipeline
