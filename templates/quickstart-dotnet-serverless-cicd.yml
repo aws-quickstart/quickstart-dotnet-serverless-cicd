@@ -1,22 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Codepipeline for dotnet serverless CI/CD
 Parameters:
-  PipelineName:
+  CodePipelineName:
     Type: String
     Description: Name for code pipeline
-  RepositoryName:
+  GitHubRepositoryName:
     Type: String
     Description: GitHub repository name
     Default: github-repository-name
-  BranchName:
+  GitHubBranchName:
     Type: String
     Description: GitHub branch name
     Default: master
   GitHubOwner:
     Type: String
-  GitHubSecret:
-    Type: String
-    NoEcho: true
   GitHubOAuthToken:
     Type: String
     NoEcho: true
@@ -26,18 +23,15 @@ Parameters:
   ElasticBeanstalkEnvName:
     Type: String
     Description: ElasticBeanStalk environment name
-  BuildContainerImage:
+  CodeBuildContainerImage:
     Type: String
     Description: Ex:<accountId>.dkr.ecr.<region>.amazonaws.com/<imageName>:latest
-  CodeBuildEncryptionKeyARN:
-    Type: String
-    Description: Ex:arn:aws:kms:<region>:<accountID>:alias/aws/s3
 Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     DependsOn: CodeBuildServiceRole
     Properties:
-      Name: !Sub ${PipelineName}-CodeBuild-Project
+      Name: !Sub ${CodePipelineName}-CodeBuild-Project
       Source:
         Type: CODEPIPELINE
         InsecureSsl: false
@@ -49,7 +43,7 @@ Resources:
         Type: NO_CACHE
       Environment:
         Type: WINDOWS_CONTAINER
-        Image: Ref! BuildContainerImage
+        Image: Ref! CodeBuildContainerImage
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
       ServiceRole:   !GetAtt 
@@ -57,7 +51,6 @@ Resources:
         - Arn
       TimeoutInMinutes: 60
       QueuedTimeoutInMinutes: 480
-      EncryptionKey: Ref! CodeBuildEncryptionKeyARN
       Badge:
         BadgeEnabled: false
       LogsConfig:
@@ -75,7 +68,7 @@ Resources:
       - CodePipelineArtifactStoreBucket
       - CodePipelineServiceRole
     Properties:
-      Name: !Ref PipelineName
+      Name: !Ref CodePipelineName
       RoleArn:  !GetAtt 
         - CodePipelineServiceRole
         - Arn
@@ -93,11 +86,11 @@ Resources:
                 Version: '1'
               RunOrder: 1
               Configuration:
-                Branch: !Ref BranchName
+                Branch: !Ref GitHubBranchName
                 OAuthToken: !Ref GitHubOAuthToken
                 Owner: !Ref GitHubOwner
                 PollForSourceChanges: false
-                Repo: !Ref RepositoryName
+                Repo: !Ref GitHubRepositoryName
               OutputArtifacts:
                 - Name: SourceArtifact      
         - Name: Build
@@ -142,7 +135,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: Sub! AWS-CodePipeline-Service-{PipelineName}
+        - PolicyName: Sub! AWS-CodePipeline-Service-{CodePipelineName}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -260,14 +253,14 @@ Resources:
                 Action: 'sts:AssumeRole'
           Path: /
           Policies:
-            - PolicyName: Sub! AWS-CodeBuild-Service-{PipelineName}
+            - PolicyName: Sub! AWS-CodeBuild-Service-{CodePipelineName}
               PolicyDocument:
                 Version: 2012-10-17
                 Statement:
                     - Effect: Allow
                       Resource:
-                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${PipelineName}-CodeBuild-Project
-                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${PipelineName}-CodeBuild-Project:*
+                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${CodePipelineName}-CodeBuild-Project
+                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${CodePipelineName}-CodeBuild-Project:*
                       Action:
                       - logs:CreateLogGroup
                       - logs:CreateLogStream
