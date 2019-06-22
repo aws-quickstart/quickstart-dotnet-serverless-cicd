@@ -264,9 +264,7 @@ Resources:
                       - 'logs:CreateLogStream'
                       - 'logs:PutLogEvents'
                     - Effect: Allow
-                      Resource:  !GetAtt 
-                        - CodePipelineArtifactStoreBucket
-                        - Arn
+                      Resource:  !Sub arn:aws:s3:::${AWS::StackName}-codepipelineartifactstore*
                       Action:
                       - 's3:PutObject'
                       - 's3:GetObject'
