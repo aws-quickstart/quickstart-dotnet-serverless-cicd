@@ -43,7 +43,7 @@ Resources:
         Type: NO_CACHE
       Environment:
         Type: WINDOWS_CONTAINER
-        Image: Ref! CodeBuildContainerImage
+        Image: !Ref CodeBuildContainerImage
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
       ServiceRole:   !GetAtt 
@@ -51,8 +51,6 @@ Resources:
         - Arn
       TimeoutInMinutes: 60
       QueuedTimeoutInMinutes: 480
-      Badge:
-        BadgeEnabled: false
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
@@ -103,7 +101,7 @@ Resources:
                 Version: 1
               RunOrder: 1
               Configuration:
-                ProjectName: Ref! CodeBuildProject
+                ProjectName: !Ref CodeBuildProject
               OutputArtifacts:
                 - Name: BuildArtifact
               InputArtifacts:
@@ -118,13 +116,14 @@ Resources:
                 Version: 1
               RunOrder: 1
               Configuration:
-                ApplicationName: Ref! ElasticBeanstalkAppName
-                EnvironmentName: Ref! ElasticBeanstalkEnvName
+                ApplicationName: !Ref ElasticBeanstalkAppName
+                EnvironmentName: !Ref ElasticBeanstalkEnvName
               InputArtifacts:
                 - Name: BuildArtifact
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
+      RoleName: !Sub AWS-CodePipeline-ServiceRole-${CodePipelineName}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -135,7 +134,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: Sub! AWS-CodePipeline-Service-{CodePipelineName}
+        - PolicyName: !Sub AWS-CodePipeline-Service-${CodePipelineName}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -243,6 +242,7 @@ Resources:
   CodeBuildServiceRole:
         Type: 'AWS::IAM::Role'
         Properties:
+          RoleName: !Sub AWS-CodeBuild-ServiceRole-${CodePipelineName}
           AssumeRolePolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -253,26 +253,23 @@ Resources:
                 Action: 'sts:AssumeRole'
           Path: /
           Policies:
-            - PolicyName: Sub! AWS-CodeBuild-Service-{CodePipelineName}
+            - PolicyName: !Sub AWS-CodeBuild-Service-${CodePipelineName}
               PolicyDocument:
                 Version: 2012-10-17
                 Statement:
                     - Effect: Allow
-                      Resource:
-                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${CodePipelineName}-CodeBuild-Project
-                      - arn:Sub! aws:logs:{AWS::Region}:{AWS::AccountId}:log-group:/aws/codebuild/${CodePipelineName}-CodeBuild-Project:*
+                      Resource: '*'
                       Action:
-                      - logs:CreateLogGroup
-                      - logs:CreateLogStream
-                      - logs:PutLogEvents
+                      - 'logs:CreateLogGroup'
+                      - 'logs:CreateLogStream'
+                      - 'logs:PutLogEvents'
                     - Effect: Allow
-                      Resource:
-                      - arn:  !GetAtt 
+                      Resource:  !GetAtt 
                         - CodePipelineArtifactStoreBucket
                         - Arn
                       Action:
-                      - s3:PutObject
-                      - s3:GetObject
-                      - s3:GetObjectVersion
-                      - s3:GetBucketAcl
-                      - s3:GetBucketLocation
+                      - 's3:PutObject'
+                      - 's3:GetObject'
+                      - 's3:GetObjectVersion'
+                      - 's3:GetBucketAcl'
+                      - 's3:GetBucketLocation'
