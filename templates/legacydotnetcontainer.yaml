@@ -1,0 +1,143 @@
+---
+schemaVersion: "0.3"
+description: "Create a .NET Framework Container for CodeBuild"
+assumeRole: "{{AutomationAssumeRole}}"
+parameters:
+  AMI: 
+    default: "/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ContainersLatest"
+    description: "Description Of Param"
+    type: "String"
+  BucketName: 
+    default: ""
+    description: "Name of Target S3 Bucket"
+    type: "String"
+  AutomationAssumeRole:
+    default: ""
+    description: "(Optional) The ARN of the role that allows Automation to perform the actions on your behalf."
+    type: "String" 
+mainSteps:
+- name: createStack
+  action: aws:createStack
+  inputs:
+    StackName: "DotNetFrameworkContainer"
+    Capabilities: [ "CAPABILITY_IAM" ]
+    TemplateBody: |
+      Description: "Deploy Instance to Create a Container"
+      Parameters:
+        LatestAmiId:
+          Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+          Default: "{{AMI}}"
+        BucketName:
+          Type: "String"
+          Default: "{{BucketName}}"
+          Description: "Name of Target S3 Bucket"
+      Resources:
+        SecurityGroup:
+          Type: AWS::EC2::SecurityGroup
+          Properties:
+            GroupDescription: DotNetContainer
+        DockerCreateRole: 
+          Type : AWS::IAM::Role
+          Properties:
+            Policies:
+              - PolicyDocument:
+                  Version: '2012-10-17'
+                  Statement:
+                    - Action:
+                        - s3:GetObject
+                      Resource: !Sub 'arn:${AWS::Partition}:s3:::${BucketName}/*'
+                      Effect: Allow
+                PolicyName: s3-instance-bucket-policy
+            Path: /
+            ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+            - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+            AssumeRolePolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Effect: "Allow"
+                Principal:
+                  Service:
+                  - "ec2.amazonaws.com"
+                  - "ssm.amazonaws.com"
+                Action: "sts:AssumeRole"
+        IamInstanceProfile:
+          Type: "AWS::IAM::InstanceProfile"
+          Properties:
+            Roles:
+            - !Ref DockerCreateRole
+        EC2Instance:
+          Type: "AWS::EC2::Instance"
+          Properties:
+            ImageId: !Ref LatestAmiId
+            InstanceType: "t3.medium"
+            IamInstanceProfile: !Ref IamInstanceProfile
+            Tags:
+            - Key: "Name"
+              Value: "DotNetFrameworkContainer"
+- name: "getInstanceId"
+  action: aws:executeAwsApi
+  inputs:
+    Service: ec2
+    Api: DescribeInstances
+    Filters:  
+    - Name: "tag:Name"
+      Values: [ "DotNetFrameworkContainer" ]
+    - Name: "instance-state-name"
+      Values: [ "running" ]
+  outputs:
+  - Name: InstanceId
+    Selector: "$.Reservations..Instances..InstanceId"
+    Type: "StringList"
+- name: "CreateDockerImage"
+  action: "aws:runCommand"
+  onFailure: "step:deleteStack"
+  inputs:
+    DocumentName: "AWS-RunRemoteScript"
+    InstanceIds:
+    - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      sourceType: "S3"
+      sourceInfo: '{"path": "https://s3.amazonaws.com/{{BucketName}}/Dockerfile"}'
+      commandLine: "docker build -t dotnetframeworkbuildtools:latest -m 2GB ."
+- name: "CreateECRRepo"
+  action: aws:runCommand
+  onFailure: "step:deleteStack"
+  inputs:
+    DocumentName: AWS-RunPowerShellScript
+    InstanceIds: 
+      - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      commands: 
+        - |     
+            New-ECRRepository -RepositoryName dotnetframeworkbuildtools
+- name: "PushDockerImagetoECR"
+  action: aws:runCommand
+  onFailure: "step:deleteStack"
+  inputs:
+    DocumentName: AWS-RunPowerShellScript
+    InstanceIds: 
+      - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      commands: 
+        - |     
+           $Region = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).region
+           $AccountID = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).accountId
+
+           $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/dotnetframeworkbuildtools:latest'
+
+           Invoke-Expression -Command (Get-ECRLoginCommand -Region $Region).Command
+           docker tag dotnetframeworkbuildtools:latest $ecrurl
+           docker push $ecrurl
+- name: deleteStack
+  action: aws:deleteStack
+  isEnd: true
+  onFailure: Continue
+  inputs:
+    StackName: "DotNetFrameworkContainer"
