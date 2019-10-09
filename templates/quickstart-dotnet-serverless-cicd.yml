@@ -23,10 +23,378 @@ Parameters:
   ElasticBeanstalkEnvName:
     Type: String
     Description: ElasticBeanStalk environment name
-  CodeBuildContainerImage:
+  ECRRepoName:
     Type: String
-    Description: Ex:<accountId>.dkr.ecr.<region>.amazonaws.com/<imageName>:latest
+    Description: ElasticBeanStalk application name
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: This string can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: aws-quickstart
+    Description: S3 bucket name for the Quick Start assets. This name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Default: quickstart-dotnet-serverless-cicd/
+    Description: S3 key prefix for the Quick Start assets. This prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
 Resources:
+  LambdaSSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: 
+                  - !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}/${QSS3KeyPrefix}*'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}'
+                Effect: Allow
+          PolicyName: aws-quick-start-s3-policy
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:SignalResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*'
+          PolicyName: aws-quick-start-cfn-signal-policy
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:getRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteRole
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:PassRole
+                Resource: '*'
+          PolicyName: aws-quick-start-create-role-policy
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:UpdateSecurityGroupRuleDescriptionsEgress
+                  - ec2:CreateSecurityGroup
+                  - ec2:UpdateSecurityGroupRuleDescriptionsIngress
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DeleteSecurityGroup
+                Resource: '*'
+          PolicyName: aws-quick-start-create-sg-policy
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+  DotNetECR:
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: !Ref ECRRepoName
+  GenerateDotNetContainer:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: "0.3"
+        description: "Create a .NET Framework Container for CodeBuild"
+        assumeRole: "{{AutomationAssumeRole}}"
+        parameters:
+          StackName:
+            default: ""
+            description: "Stack Name Input for cfn resource signal"
+            type: "String"
+          ECRRepoName: 
+            default: ""
+            description: "ECR Repo Name"
+            type: "String"
+          QSS3BucketName:
+            default: "aws-quickstart"
+            description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+            type: "String"
+          QSS3KeyPrefix:
+            default: "quickstart-dotnet-serverless-cicd/"
+            description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+            type: "String"
+          AutomationAssumeRole:
+            default: ""
+            description: "(Optional) The ARN of the role that allows Automation to perform the actions on your behalf."
+            type: "String" 
+        mainSteps:
+        - name: createStack
+          action: aws:createStack
+          onFailure: "step:signalfailure"
+          inputs:
+            StackName: "DotNetFrameworkContainer"
+            Capabilities: [ "CAPABILITY_IAM" ]
+            TemplateBody: |
+              Description: "Deploy Instance to Create a Container"
+              Parameters:
+                LatestAmiId:
+                  Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+                  Default: "/aws/service/ami-windows-latest/Windows_Server-2016-English-Core-Containers"
+                QSS3BucketName:
+                  Type: "String"
+                  Default: "{{QSS3BucketName}}"
+                  Description: "Name of Target S3 Bucket"
+                QSS3KeyPrefix:
+                  Type: "String"
+                  Default: "{{QSS3KeyPrefix}}"
+                  Description: "Name of Target S3 Prefix"
+              Resources:
+                SecurityGroup:
+                  Type: AWS::EC2::SecurityGroup
+                  Properties:
+                    GroupDescription: DotNetContainer
+                DockerCreateRole: 
+                  Type : AWS::IAM::Role
+                  Properties:
+                    Policies:
+                      - PolicyDocument:
+                          Version: '2012-10-17'
+                          Statement:
+                            - Action:
+                                - s3:GetObject
+                              Resource: !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}/${QSS3KeyPrefix}*'
+                              Effect: Allow
+                        PolicyName: s3-instance-bucket-policy
+                    Path: /
+                    ManagedPolicyArns:
+                    - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+                    - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+                    AssumeRolePolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                      - Effect: "Allow"
+                        Principal:
+                          Service:
+                          - "ec2.amazonaws.com"
+                          - "ssm.amazonaws.com"
+                        Action: "sts:AssumeRole"
+                IamInstanceProfile:
+                  Type: "AWS::IAM::InstanceProfile"
+                  Properties:
+                    Roles:
+                    - !Ref DockerCreateRole
+                EC2Instance:
+                  Type: "AWS::EC2::Instance"
+                  Properties:
+                    ImageId: !Ref LatestAmiId
+                    InstanceType: "t3.medium"
+                    IamInstanceProfile: !Ref IamInstanceProfile
+                    Tags:
+                    - Key: "Name"
+                      Value: "DotNetFrameworkContainer"
+        - name: "getInstanceId"
+          action: aws:executeAwsApi
+          onFailure: "step:signalfailure"
+          inputs:
+            Service: ec2
+            Api: DescribeInstances
+            Filters:  
+            - Name: "tag:Name"
+              Values: [ "DotNetFrameworkContainer" ]
+            - Name: "instance-state-name"
+              Values: [ "running" ]
+          outputs:
+          - Name: InstanceId
+            Selector: "$.Reservations..Instances..InstanceId"
+            Type: "StringList"
+        - name: "CreateDockerImage"
+          action: "aws:runCommand"
+          onFailure: "step:signalfailure"
+          inputs:
+            DocumentName: "AWS-RunRemoteScript"
+            InstanceIds:
+            - "{{getInstanceId.InstanceId}}"
+            CloudWatchOutputConfig:
+              CloudWatchOutputEnabled: "true"
+            Parameters:
+              sourceType: "S3"
+              sourceInfo: '{"path": "https://{{QSS3BucketName}}.s3.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
+              commandLine: "docker build -t dotnetframeworkbuildtools:latest -m 2GB ."
+        - name: "PushDockerImagetoECR"
+          action: aws:runCommand
+          onFailure: "step:signalfailure"
+          inputs:
+            DocumentName: AWS-RunPowerShellScript
+            InstanceIds: 
+              - "{{getInstanceId.InstanceId}}"
+            CloudWatchOutputConfig:
+              CloudWatchOutputEnabled: "true"
+            Parameters:
+              commands: 
+                - |     
+                   $Region = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).region
+                   $AccountID = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).accountId
+        
+                   $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/{{ECRRepoName}}:latest'
+        
+                   Invoke-Expression -Command (Get-ECRLoginCommand -Region $Region).Command
+                   docker tag dotnetframeworkbuildtools:latest $ecrurl
+                   docker push $ecrurl
+        # Determines if CFN Needs to be Signaled or if Work flow should just end
+        - name: CFNSignalEnd
+          action: aws:branch
+          inputs:
+            Choices:
+            - NextStep: signalsuccess
+              Not: 
+                Variable: "{{StackName}}"
+                StringEquals: ""
+            - NextStep: sleepend
+              Variable: "{{StackName}}"
+              StringEquals: ""
+        # If all steps complete successfully signals CFN of Success
+        - name: "signalsuccess"
+          action: "aws:executeAwsApi"
+          nextStep: "deleteStack"
+          inputs:
+            Service: cloudformation
+            Api: SignalResource
+            LogicalResourceId: "SSMWaitCondition"
+            StackName: "{{StackName}}"
+            Status: SUCCESS
+            UniqueId: "SSMWaitCondition"
+        # If CFN Signl Not Needed this sleep ends work flow
+        - name: "sleepend"
+          action: "aws:sleep"
+          nextStep: "deleteStack"
+          inputs:
+            Duration: PT1S
+        # If any steps fails signals CFN of Failure
+        - name: "signalfailure"
+          action: "aws:executeAwsApi"
+          nextStep: "deleteStack"
+          inputs:
+            Service: cloudformation
+            Api: SignalResource
+            LogicalResourceId: "SSMWaitCondition"
+            StackName: "{{StackName}}"
+            Status: FAILURE
+            UniqueId: "SSMWaitCondition"
+        - name: deleteStack
+          action: aws:deleteStack
+          isEnd: true
+          onFailure: Continue
+          inputs:
+            StackName: "DotNetFrameworkContainer"
+  LambdaSSMExecute:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Executes SSM Automation Documents
+      Handler: index.handler
+      Runtime: python3.7
+      Role: !GetAtt LambdaSSMRole.Arn
+      Timeout: 900
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              import cfnresponse
+              import boto3, os, json
+              from botocore.vendored import requests
+          
+              ssm_cl = boto3.client('ssm')
+              req_type = event['RequestType']
+              print(event)
+          
+              SUCCESS = "SUCCESS"
+              FAILED = "FAILED"
+          
+              def start_ssmautomation(event):
+                  doc_name = event['ResourceProperties']['DocumentName']
+                  ecr_repo = event['ResourceProperties']['ECRRepoName']
+                  stack_name = event['ResourceProperties']['StackName']
+                  qs_bucket = event['ResourceProperties']['QSS3BucketName']
+                  qs_bucket_prefix = event['ResourceProperties']['QSS3KeyPrefix']
+          
+                  start_automation = ssm_cl.start_automation_execution(
+                      DocumentName= doc_name,
+                      Parameters={
+                          'ECRRepoName': [
+                              ecr_repo
+                          ],
+                          'StackName': [
+                              stack_name
+                          ],
+                          'QSS3BucketName': [
+                              qs_bucket
+                          ],
+                          'QSS3KeyPrefix': [
+                              qs_bucket_prefix
+                          ]
+                      },
+                  )
+          
+                  cfnresponse.send(event, context, SUCCESS, start_automation, start_automation['AutomationExecutionId'])
+              
+              def delete_automation(event):
+                  cfnresponse.send(event, context, SUCCESS, event, 'nothingtodo')
+          
+              actions = {
+                  'Create': start_ssmautomation,
+                  'Delete': delete_automation,
+                  'Update': start_ssmautomation
+              }
+          
+              try:
+                  actions.get(req_type)(event)    
+              except Exception as exc:
+                  error_msg = {'Error': '{}'.format(exc)}
+                  print(error_msg)
+                  cfnresponse.send(event, context, FAILED, error_msg)
+  ExecuteSSMAutomation:
+    DependsOn: LambdaSSMExecute
+    Type: Custom::ExecuteSSMAutomation
+    Properties: 
+      ServiceToken: !GetAtt LambdaSSMExecute.Arn
+      DocumentName: !Ref GenerateDotNetContainer
+      ECRRepoName: !Ref ECRRepoName
+      StackName: !Ref AWS::StackName
+      QSS3BucketName: !Ref QSS3BucketName
+      QSS3KeyPrefix: !Ref QSS3KeyPrefix
+  SSMWaitHandle: 
+    Type: AWS::CloudFormation::WaitConditionHandle
+  SSMWaitCondition: 
+    Type: AWS::CloudFormation::WaitCondition
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT30M
+        Count: 1
+    DependsOn: "ExecuteSSMAutomation"
+    Properties: 
+      Handle: 
+        Ref: "SSMWaitHandle"
+      Timeout: "1800"
+      Count: 1
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     DependsOn: CodeBuildServiceRole
@@ -43,7 +411,7 @@ Resources:
         Type: NO_CACHE
       Environment:
         Type: WINDOWS_CONTAINER
-        Image: !Ref CodeBuildContainerImage
+        Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:latest'
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
       ServiceRole:   !GetAtt 
