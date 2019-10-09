@@ -3,13 +3,21 @@ schemaVersion: "0.3"
 description: "Create a .NET Framework Container for CodeBuild"
 assumeRole: "{{AutomationAssumeRole}}"
 parameters:
-  AMI: 
-    default: "/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ContainersLatest"
-    description: "Description Of Param"
-    type: "String"
-  BucketName: 
+  StackName:
     default: ""
-    description: "Name of Target S3 Bucket"
+    description: "Stack Name Input for cfn resource signal"
+    type: "String"
+  ECRRepoName: 
+    default: ""
+    description: "ECR Repo Name"
+    type: "String"
+  QSS3BucketName:
+    default: "aws-quickstart"
+    description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    type: "String"
+  QSS3KeyPrefix:
+    default: "quickstart-dotnet-serverless-cicd/"
+    description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
     type: "String"
   AutomationAssumeRole:
     default: ""
@@ -18,6 +26,7 @@ parameters:
 mainSteps:
 - name: createStack
   action: aws:createStack
+  onFailure: "step:CFNSignalEnd"
   inputs:
     StackName: "DotNetFrameworkContainer"
     Capabilities: [ "CAPABILITY_IAM" ]
@@ -45,7 +54,7 @@ mainSteps:
                   Statement:
                     - Action:
                         - s3:GetObject
-                      Resource: !Sub 'arn:${AWS::Partition}:s3:::${BucketName}/*'
+                      Resource: !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}/*'
                       Effect: Allow
                 PolicyName: s3-instance-bucket-policy
             Path: /
@@ -77,6 +86,7 @@ mainSteps:
               Value: "DotNetFrameworkContainer"
 - name: "getInstanceId"
   action: aws:executeAwsApi
+  onFailure: "step:CFNSignalEnd"
   inputs:
     Service: ec2
     Api: DescribeInstances
@@ -91,7 +101,7 @@ mainSteps:
     Type: "StringList"
 - name: "CreateDockerImage"
   action: "aws:runCommand"
-  onFailure: "step:deleteStack"
+  onFailure: "step:CFNSignalEnd"
   inputs:
     DocumentName: "AWS-RunRemoteScript"
     InstanceIds:
@@ -100,11 +110,11 @@ mainSteps:
       CloudWatchOutputEnabled: "true"
     Parameters:
       sourceType: "S3"
-      sourceInfo: '{"path": "https://s3.amazonaws.com/{{BucketName}}/Dockerfile"}'
+      sourceInfo: '{"path": "https://{{QSS3BucketName}}.s3.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
       commandLine: "docker build -t dotnetframeworkbuildtools:latest -m 2GB ."
 - name: "CreateECRRepo"
   action: aws:runCommand
-  onFailure: "step:deleteStack"
+  onFailure: "step:CFNSignalEnd"
   inputs:
     DocumentName: AWS-RunPowerShellScript
     InstanceIds: 
@@ -117,7 +127,7 @@ mainSteps:
             New-ECRRepository -RepositoryName dotnetframeworkbuildtools
 - name: "PushDockerImagetoECR"
   action: aws:runCommand
-  onFailure: "step:deleteStack"
+  onFailure: "step:CFNSignalEnd"
   inputs:
     DocumentName: AWS-RunPowerShellScript
     InstanceIds: 
@@ -130,11 +140,51 @@ mainSteps:
            $Region = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).region
            $AccountID = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).accountId
 
-           $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/dotnetframeworkbuildtools:latest'
+           $ecrurl = $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/{{ECRRepoName}}:latest'
 
            Invoke-Expression -Command (Get-ECRLoginCommand -Region $Region).Command
            docker tag dotnetframeworkbuildtools:latest $ecrurl
            docker push $ecrurl
+# Determines if CFN Needs to be Signaled or if Work flow should just end
+- name: CFNSignalEnd
+  action: aws:branch
+  inputs:
+    Choices:
+    - NextStep: signalsuccess
+      Not: 
+        Variable: "{{StackName}}"
+        StringEquals: ""
+    - NextStep: sleepend
+      Variable: "{{StackName}}"
+      StringEquals: ""
+# If all steps complete successfully signals CFN of Success
+- name: "signalsuccess"
+  action: "aws:executeAwsApi"
+  nextStep: "deleteStack"
+  inputs:
+    Service: cloudformation
+    Api: SignalResource
+    LogicalResourceId: "SSMWaitCondition"
+    StackName: "{{StackName}}"
+    Status: SUCCESS
+    UniqueId: "{{getInstanceId.InstanceId}}"
+# If CFN Signl Not Needed this sleep ends work flow
+- name: "sleepend"
+  action: "aws:sleep"
+  nextStep: "deleteStack"
+  inputs:
+    Duration: PT1S
+# If any steps fails signals CFN of Failure
+- name: "signalfailure"
+  action: "aws:executeAwsApi"
+  nextStep: "deleteStack"
+  inputs:
+    Service: cloudformation
+    Api: SignalResource
+    LogicalResourceId: "SSMWaitCondition"
+    StackName: "{{StackName}}"
+    Status: FAILURE
+    UniqueId: "{{getInstanceId.InstanceId}}"
 - name: deleteStack
   action: aws:deleteStack
   isEnd: true
