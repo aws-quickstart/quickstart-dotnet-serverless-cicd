@@ -73,6 +73,7 @@ Resources:
       - CodeBuildProject
       - CodePipelineArtifactStoreBucket
       - CodePipelineServiceRole
+      - ElasticBeanstalkEnvironment
     Properties:
       Name: !Sub ${AWS::StackName}-CodePipeline
       RoleArn:  !GetAtt 
@@ -279,6 +280,19 @@ Resources:
                       - 's3:GetObjectVersion'
                       - 's3:GetBucketAcl'
                       - 's3:GetBucketLocation'
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
+      Description: AWS Elastic Beanstalk Sample Application
+  ElasticBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    DependsOn: ElasticBeanstalkApplication
+    Properties: 
+      ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
+      Description: "AWS Elastic Beanstalk Environment running .Net Application"
+      EnvironmentName: !Sub ${AWS::StackName}-ElasticBeanstalkEnvName
+      SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
   LambdaSSMRole:
     DependsOn: DotNetECR
     Type: AWS::IAM::Role
