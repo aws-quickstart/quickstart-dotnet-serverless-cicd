@@ -1,41 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Codepipeline for dotnet serverless CI/CD
 Parameters:
-  CodePipelineName:
-    Type: String
-    Description: Name for code pipeline
   GitHubRepositoryName:
     Type: String
     Description: GitHub repository name
-    Default: github-repository-name
+    Default: quickstart-dotnet-serverless-cicd
   GitHubBranchName:
     Type: String
     Description: GitHub branch name
     Default: master
   GitHubOwner:
     Type: String
+    Default: rmalladi1
   GitHubOAuthToken:
     Type: String
     NoEcho: true
-  ElasticBeanstalkAppName:
-    Type: String
-    Description: ElasticBeanStalk application name
-  ElasticBeanstalkEnvName:
-    Type: String
-    Description: ElasticBeanStalk environment name
-  CodeBuildContainerImage:
-    Type: String
-    Description: Ex:<accountId>.dkr.ecr.<region>.amazonaws.com/<imageName>:latest
-  ECRRepoName:
-    Type: String
-    Description: ECR Repo name
-    Default: dotnetframeworkbuildtools
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: This string can include numbers, lowercase
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
-    Default: aws-quickstart
+    Default: aws-quickstart-raj-10-13-2019
     Description: S3 bucket name for the Quick Start assets. This name
       can include numbers, lowercase letters, uppercase letters, and hyphens (-).
       It cannot start or end with a hyphen (-).
@@ -54,7 +39,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     DependsOn: CodeBuildServiceRole
     Properties:
-      Name: !Sub ${CodePipelineName}-CodeBuild-Project
+      Name: !Sub ${AWS::StackName}-CodeBuild-Project
       Source:
         Type: CODEPIPELINE
         InsecureSsl: false
@@ -66,7 +51,7 @@ Resources:
         Type: NO_CACHE
       Environment:
         Type: WINDOWS_CONTAINER
-        Image: !Ref CodeBuildContainerImage
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}-ecr-repo:latest
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
       ServiceRole:   !GetAtt 
@@ -89,7 +74,7 @@ Resources:
       - CodePipelineArtifactStoreBucket
       - CodePipelineServiceRole
     Properties:
-      Name: !Ref CodePipelineName
+      Name: !Sub ${AWS::StackName}-CodePipeline
       RoleArn:  !GetAtt 
         - CodePipelineServiceRole
         - Arn
@@ -139,14 +124,14 @@ Resources:
                 Version: 1
               RunOrder: 1
               Configuration:
-                ApplicationName: !Ref ElasticBeanstalkAppName
-                EnvironmentName: !Ref ElasticBeanstalkEnvName
+                ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
+                EnvironmentName: !Sub ${AWS::StackName}-ElasticBeanstalkEnvName
               InputArtifacts:
                 - Name: BuildArtifact
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub AWS-CodePipeline-ServiceRole-${CodePipelineName}
+      RoleName: !Sub AWS-CodePipeline-ServiceRole-${AWS::StackName}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -157,7 +142,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: !Sub AWS-CodePipeline-Service-${CodePipelineName}
+        - PolicyName: !Sub AWS-CodePipeline-Service-${AWS::StackName}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -265,7 +250,7 @@ Resources:
   CodeBuildServiceRole:
         Type: 'AWS::IAM::Role'
         Properties:
-          RoleName: !Sub AWS-CodeBuild-ServiceRole-${CodePipelineName}
+          RoleName: !Sub AWS-CodeBuild-ServiceRole-${AWS::StackName}
           AssumeRolePolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -276,7 +261,7 @@ Resources:
                 Action: 'sts:AssumeRole'
           Path: /
           Policies:
-            - PolicyName: !Sub AWS-CodeBuild-Service-${CodePipelineName}
+            - PolicyName: !Sub AWS-CodeBuild-Service-${AWS::StackName}
               PolicyDocument:
                 Version: 2012-10-17
                 Statement:
@@ -367,7 +352,19 @@ Resources:
   DotNetECR:
     Type: AWS::ECR::Repository
     Properties: 
-      RepositoryName: !Ref ECRRepoName
+      RepositoryName: !Sub ${AWS::StackName}-ecr-repo
+      RepositoryPolicyText: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Sid: AllowPullFromCodeBuild
+            Effect: Allow
+            Principal: 
+              Service: codebuild.amazonaws.com
+            Action: 
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "ecr:BatchCheckLayerAvailability"
   GenerateDotNetContainer:
     Type: AWS::SSM::Document
     Properties:
@@ -495,7 +492,7 @@ Resources:
             Parameters:
               sourceType: "S3"
               sourceInfo: '{"path": "https://{{QSS3BucketName}}.s3.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
-              commandLine: "docker build -t dotnetframeworkbuildtools:latest -m 2GB ."
+              commandLine: "docker build -t {{ECRRepoName}}:latest -m 2GB ."
         - name: "PushDockerImagetoECR"
           action: aws:runCommand
           onFailure: "step:signalfailure"
@@ -511,10 +508,10 @@ Resources:
                    $Region = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).region
                    $AccountID = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).accountId
         
-                   $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/dotnetframeworkbuildtools:latest'
+                   $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/{{ECRRepoName}}:latest'
         
                    Invoke-Expression -Command (Get-ECRLoginCommand -Region $Region).Command
-                   docker tag dotnetframeworkbuildtools:latest $ecrurl
+                   docker tag {{ECRRepoName}}:latest $ecrurl
                    docker push $ecrurl
         # Determines if CFN Needs to be Signaled or if Work flow should just end
         - name: CFNSignalEnd
@@ -633,7 +630,7 @@ Resources:
     Properties: 
       ServiceToken: !GetAtt LambdaSSMExecute.Arn
       DocumentName: !Ref GenerateDotNetContainer
-      ECRRepoName: !Ref ECRRepoName
+      ECRRepoName: !Sub ${AWS::StackName}-ecr-repo
       StackName: !Ref AWS::StackName
       QSS3BucketName: !Ref QSS3BucketName
       QSS3KeyPrefix: !Ref QSS3KeyPrefix
