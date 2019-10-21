@@ -1,0 +1,193 @@
+---
+schemaVersion: "0.3"
+description: "Create a .NET Framework Container for CodeBuild"
+assumeRole: "{{AutomationAssumeRole}}"
+parameters:
+  StackName:
+    default: ""
+    description: "Stack Name Input for cfn resource signal"
+    type: "String"
+  ECRRepoName: 
+    default: ""
+    description: "ECR Repo Name"
+    type: "String"
+  QSS3BucketName:
+    default: "aws-quickstart"
+    description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    type: "String"
+  QSS3KeyPrefix:
+    default: "quickstart-dotnet-serverless-cicd/"
+    description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    type: "String"
+  AutomationAssumeRole:
+    default: ""
+    description: "(Optional) The ARN of the role that allows Automation to perform the actions on your behalf."
+    type: "String" 
+mainSteps:
+- name: createStack
+  action: aws:createStack
+  onFailure: "step:CFNSignalEnd"
+  inputs:
+    StackName: "DotNetFrameworkContainer"
+    Capabilities: [ "CAPABILITY_IAM" ]
+    TemplateBody: |
+      Description: "Deploy Instance to Create a Container"
+      Parameters:
+        LatestAmiId:
+          Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+          Default: "{{AMI}}"
+        BucketName:
+          Type: "String"
+          Default: "{{BucketName}}"
+          Description: "Name of Target S3 Bucket"
+      Resources:
+        SecurityGroup:
+          Type: AWS::EC2::SecurityGroup
+          Properties:
+            GroupDescription: DotNetContainer
+        DockerCreateRole: 
+          Type : AWS::IAM::Role
+          Properties:
+            Policies:
+              - PolicyDocument:
+                  Version: '2012-10-17'
+                  Statement:
+                    - Action:
+                        - s3:GetObject
+                      Resource: !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}/*'
+                      Effect: Allow
+                PolicyName: s3-instance-bucket-policy
+            Path: /
+            ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+            - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+            AssumeRolePolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Effect: "Allow"
+                Principal:
+                  Service:
+                  - "ec2.amazonaws.com"
+                  - "ssm.amazonaws.com"
+                Action: "sts:AssumeRole"
+        IamInstanceProfile:
+          Type: "AWS::IAM::InstanceProfile"
+          Properties:
+            Roles:
+            - !Ref DockerCreateRole
+        EC2Instance:
+          Type: "AWS::EC2::Instance"
+          Properties:
+            ImageId: !Ref LatestAmiId
+            InstanceType: "t3.medium"
+            IamInstanceProfile: !Ref IamInstanceProfile
+            Tags:
+            - Key: "Name"
+              Value: "DotNetFrameworkContainer"
+- name: "getInstanceId"
+  action: aws:executeAwsApi
+  onFailure: "step:CFNSignalEnd"
+  inputs:
+    Service: ec2
+    Api: DescribeInstances
+    Filters:  
+    - Name: "tag:Name"
+      Values: [ "DotNetFrameworkContainer" ]
+    - Name: "instance-state-name"
+      Values: [ "running" ]
+  outputs:
+  - Name: InstanceId
+    Selector: "$.Reservations..Instances..InstanceId"
+    Type: "StringList"
+- name: "CreateDockerImage"
+  action: "aws:runCommand"
+  onFailure: "step:CFNSignalEnd"
+  inputs:
+    DocumentName: "AWS-RunRemoteScript"
+    InstanceIds:
+    - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      sourceType: "S3"
+      sourceInfo: '{"path": "https://{{QSS3BucketName}}.s3.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
+      commandLine: "docker build -t dotnetframeworkbuildtools:latest -m 2GB ."
+- name: "CreateECRRepo"
+  action: aws:runCommand
+  onFailure: "step:CFNSignalEnd"
+  inputs:
+    DocumentName: AWS-RunPowerShellScript
+    InstanceIds: 
+      - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      commands: 
+        - |     
+            New-ECRRepository -RepositoryName dotnetframeworkbuildtools
+- name: "PushDockerImagetoECR"
+  action: aws:runCommand
+  onFailure: "step:CFNSignalEnd"
+  inputs:
+    DocumentName: AWS-RunPowerShellScript
+    InstanceIds: 
+      - "{{getInstanceId.InstanceId}}"
+    CloudWatchOutputConfig:
+      CloudWatchOutputEnabled: "true"
+    Parameters:
+      commands: 
+        - |     
+           $Region = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).region
+           $AccountID = (Invoke-RestMethod -Method Get -Uri http://169.254.169.254/latest/dynamic/instance-identity/document).accountId
+
+           $ecrurl = $ecrurl = $AccountID + '.dkr.ecr.' + $Region + '.amazonaws.com/{{ECRRepoName}}:latest'
+
+           Invoke-Expression -Command (Get-ECRLoginCommand -Region $Region).Command
+           docker tag dotnetframeworkbuildtools:latest $ecrurl
+           docker push $ecrurl
+# Determines if CFN Needs to be Signaled or if Work flow should just end
+- name: CFNSignalEnd
+  action: aws:branch
+  inputs:
+    Choices:
+    - NextStep: signalsuccess
+      Not: 
+        Variable: "{{StackName}}"
+        StringEquals: ""
+    - NextStep: sleepend
+      Variable: "{{StackName}}"
+      StringEquals: ""
+# If all steps complete successfully signals CFN of Success
+- name: "signalsuccess"
+  action: "aws:executeAwsApi"
+  nextStep: "deleteStack"
+  inputs:
+    Service: cloudformation
+    Api: SignalResource
+    LogicalResourceId: "SSMWaitCondition"
+    StackName: "{{StackName}}"
+    Status: SUCCESS
+    UniqueId: "{{getInstanceId.InstanceId}}"
+# If CFN Signl Not Needed this sleep ends work flow
+- name: "sleepend"
+  action: "aws:sleep"
+  nextStep: "deleteStack"
+  inputs:
+    Duration: PT1S
+# If any steps fails signals CFN of Failure
+- name: "signalfailure"
+  action: "aws:executeAwsApi"
+  nextStep: "deleteStack"
+  inputs:
+    Service: cloudformation
+    Api: SignalResource
+    LogicalResourceId: "SSMWaitCondition"
+    StackName: "{{StackName}}"
+    Status: FAILURE
+    UniqueId: "{{getInstanceId.InstanceId}}"
+- name: deleteStack
+  action: aws:deleteStack
+  isEnd: true
+  onFailure: Continue
+  inputs:
+    StackName: "DotNetFrameworkContainer"
