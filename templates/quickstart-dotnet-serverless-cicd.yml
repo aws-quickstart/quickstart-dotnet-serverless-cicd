@@ -74,6 +74,7 @@ Resources:
       - CodePipelineArtifactStoreBucket
       - CodePipelineServiceRole
       - ElasticBeanstalkEnvironment
+      - SSMWaitCondition
     Properties:
       Name: !Sub ${AWS::StackName}-CodePipeline
       RoleArn:  !GetAtt 
