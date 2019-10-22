@@ -281,6 +281,28 @@ Resources:
                       - 's3:GetObjectVersion'
                       - 's3:GetBucketAcl'
                       - 's3:GetBucketLocation'
+  InstanceProfileRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier            
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref InstanceProfileRole
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
@@ -294,6 +316,10 @@ Resources:
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
       EnvironmentName: !Sub ${AWS::StackName}-ElasticBeanstalkEnvName
       SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
+      OptionSettings:
+        - Namespace: 'aws:autoscaling:launchconfiguration'
+          OptionName: IamInstanceProfile
+          Value: !Ref InstanceProfile
   LambdaSSMRole:
     DependsOn: DotNetECR
     Type: AWS::IAM::Role
