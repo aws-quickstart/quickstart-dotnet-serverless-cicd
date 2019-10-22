@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "GitHubRepositoryName",
+        "ParameterValue": "quickstart-dotnet-serverless-cicd"
+    },
+    {
+        "ParameterKey": "GitHubBranchName",
+        "ParameterValue": "develop"
+    },
+    {
+        "ParameterKey": "GitHubOwner",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "GitHubOAuthToken",
+        "ParameterValue": ""
+    },
+    {
+        "ParameterKey": "QSS3BucketName",
+        "ParameterValue": "$[taskcat_autobucket]"
+    }
+]
