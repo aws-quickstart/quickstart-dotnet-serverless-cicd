@@ -9,11 +9,11 @@
     },
     {
         "ParameterKey": "GitHubOwner",
-        "ParameterValue": ""
+        "ParameterValue": "aws-quickstart"
     },
     {
         "ParameterKey": "GitHubOAuthToken",
-        "ParameterValue": ""
+        "ParameterValue": "github-token"
     },
     {
         "ParameterKey": "QSS3BucketName",
