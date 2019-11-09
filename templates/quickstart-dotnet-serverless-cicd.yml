@@ -307,7 +307,7 @@ Resources:
     Properties: 
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
-      SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
+      SolutionStackName: "64bit Windows Server 2016 v2.3.0 running IIS 10.0"
       OptionSettings:
         - Namespace: 'aws:autoscaling:launchconfiguration'
           OptionName: IamInstanceProfile
