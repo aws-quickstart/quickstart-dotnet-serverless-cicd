@@ -8,7 +8,6 @@ Parameters:
   GitHubBranchName:
     Type: String
     Description: GitHub branch name
-    Default: master
   GitHubOwner:
     Type: String
   GitHubOAuthToken:
@@ -19,7 +18,7 @@ Parameters:
     ConstraintDescription: This string can include numbers, lowercase
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
-    Default: aws-quickstart-raj-10-13-2019
+    Default: aws-quickstart
     Description: S3 bucket name for the Quick Start assets. This name
       can include numbers, lowercase letters, uppercase letters, and hyphens (-).
       It cannot start or end with a hyphen (-).
@@ -308,7 +307,11 @@ Resources:
     Properties: 
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
+<<<<<<< HEAD
       SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
+=======
+      SolutionStackName: "64bit Windows Server 2016 v2.3.0 running IIS 10.0"
+>>>>>>> 9f47faf7029ec704ad5d80943b65691d6530fff7
       OptionSettings:
         - Namespace: 'aws:autoscaling:launchconfiguration'
           OptionName: IamInstanceProfile
