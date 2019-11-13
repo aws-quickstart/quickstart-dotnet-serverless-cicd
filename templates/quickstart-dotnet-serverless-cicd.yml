@@ -307,11 +307,7 @@ Resources:
     Properties: 
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
-<<<<<<< HEAD
-      SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
-=======
       SolutionStackName: "64bit Windows Server 2016 v2.3.0 running IIS 10.0"
->>>>>>> 9f47faf7029ec704ad5d80943b65691d6530fff7
       OptionSettings:
         - Namespace: 'aws:autoscaling:launchconfiguration'
           OptionName: IamInstanceProfile
@@ -375,6 +371,20 @@ Resources:
                   - ec2:DeleteSecurityGroup
                 Resource: '*'
           PolicyName: aws-quick-start-create-sg-policy
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeImageScanFindings
+                  - ecr:BatchGetImage
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:BatchDeleteImage
+                  - ecr:BatchDeleteImage
+                  - ecr:ListImages
+                Resource: !GetAtt 'DotNetECR.Arn'
+          PolicyName: aws-quick-start-delete-ecr-images
       Path: /
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -389,7 +399,6 @@ Resources:
   DotNetECR:
     Type: AWS::ECR::Repository
     Properties: 
-      RepositoryName: !Sub ${AWS::StackName}-ecr-repo
       RepositoryPolicyText: 
         Version: "2012-10-17"
         Statement: 
@@ -613,6 +622,7 @@ Resources:
               from botocore.vendored import requests
           
               ssm_cl = boto3.client('ssm')
+              ecr_cl = boto3.client('ecr')
               req_type = event['RequestType']
               print(event)
           
@@ -646,12 +656,22 @@ Resources:
           
                   cfnresponse.send(event, context, SUCCESS, start_automation, start_automation['AutomationExecutionId'])
               
-              def delete_automation(event):
-                  cfnresponse.send(event, context, SUCCESS, event, 'nothingtodo')
+              def delete_image(event):
+                  ecr_repo = event['ResourceProperties']['ECRRepoName']
+
+                  delete_image = client.batch_delete_image(
+                    repositoryName='ecr_repo',
+                    imageIds=[
+                        {
+                            'imageTag': 'latest'
+                        },
+                    ]
+                  )
+                  cfnresponse.send(event, context, SUCCESS, event, 'Image Deleted')
           
               actions = {
                   'Create': start_ssmautomation,
-                  'Delete': delete_automation,
+                  'Delete': delete_image,
                   'Update': start_ssmautomation
               }
           
