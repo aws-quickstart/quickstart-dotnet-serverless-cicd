@@ -659,7 +659,7 @@ Resources:
               def delete_image(event):
                   ecr_repo = event['ResourceProperties']['ECRRepoName']
 
-                  delete_image = client.batch_delete_image(
+                  delete_image = ecr_cl.batch_delete_image(
                     repositoryName = ecr_repo,
                     imageIds=[
                         {
