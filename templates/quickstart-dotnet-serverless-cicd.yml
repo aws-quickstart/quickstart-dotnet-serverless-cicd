@@ -660,7 +660,7 @@ Resources:
                   ecr_repo = event['ResourceProperties']['ECRRepoName']
 
                   delete_image = client.batch_delete_image(
-                    repositoryName='ecr_repo',
+                    repositoryName = ecr_repo,
                     imageIds=[
                         {
                             'imageTag': 'latest'
@@ -687,7 +687,7 @@ Resources:
     Properties: 
       ServiceToken: !GetAtt LambdaSSMExecute.Arn
       DocumentName: !Ref GenerateDotNetContainer
-      ECRRepoName: !Sub ${AWS::StackName}-ecr-repo
+      ECRRepoName: !Ref DotNetECR
       StackName: !Ref AWS::StackName
       QSS3BucketName: !Ref QSS3BucketName
       QSS3KeyPrefix: !Ref QSS3KeyPrefix
