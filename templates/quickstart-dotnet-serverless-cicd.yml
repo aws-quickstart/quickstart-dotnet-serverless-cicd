@@ -8,10 +8,8 @@ Parameters:
   GitHubBranchName:
     Type: String
     Description: GitHub branch name
-    Default: master
   GitHubOwner:
     Type: String
-    Default: rmalladi1
   GitHubOAuthToken:
     Type: String
     NoEcho: true
@@ -20,7 +18,7 @@ Parameters:
     ConstraintDescription: This string can include numbers, lowercase
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
-    Default: aws-quickstart-raj-10-13-2019
+    Default: aws-quickstart
     Description: S3 bucket name for the Quick Start assets. This name
       can include numbers, lowercase letters, uppercase letters, and hyphens (-).
       It cannot start or end with a hyphen (-).
@@ -39,7 +37,6 @@ Resources:
     Type: AWS::CodeBuild::Project
     DependsOn: CodeBuildServiceRole
     Properties:
-      Name: !Sub ${AWS::StackName}-CodeBuild-Project
       Source:
         Type: CODEPIPELINE
         InsecureSsl: false
@@ -72,11 +69,9 @@ Resources:
       - CodePipelineServiceRole
       - CodeBuildProject
       - CodePipelineArtifactStoreBucket
-      - CodePipelineServiceRole
       - ElasticBeanstalkEnvironment
       - SSMWaitCondition
     Properties:
-      Name: !Sub ${AWS::StackName}-CodePipeline
       RoleArn:  !GetAtt 
         - CodePipelineServiceRole
         - Arn
@@ -133,7 +128,6 @@ Resources:
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub AWS-CodePipeline-ServiceRole-${AWS::StackName}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -252,7 +246,6 @@ Resources:
   CodeBuildServiceRole:
         Type: 'AWS::IAM::Role'
         Properties:
-          RoleName: !Sub AWS-CodeBuild-ServiceRole-${AWS::StackName}
           AssumeRolePolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -281,7 +274,7 @@ Resources:
                       - 's3:GetObjectVersion'
                       - 's3:GetBucketAcl'
                       - 's3:GetBucketLocation'
-  InstanceProfileRole:
+  EBInstanceProfileRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -298,30 +291,28 @@ Resources:
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier            
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
-  InstanceProfile:
+  EBInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Roles: 
-        - !Ref InstanceProfileRole
+        - !Ref EBInstanceProfileRole
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
-      ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
+      ApplicationName: !Sub ${AWS::StackName}-EBAppName
       Description: AWS Elastic Beanstalk Sample Application
   ElasticBeanstalkEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     DependsOn: ElasticBeanstalkApplication
     Properties: 
-      ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
+      ApplicationName: !Ref ElasticBeanstalkApplication
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
-      EnvironmentName: !Sub ${AWS::StackName}-ElasticBeanstalkEnvName
-      SolutionStackName: "64bit Windows Server 2016 v2.2.2 running IIS 10.0"
+      SolutionStackName: "64bit Windows Server 2016 v2.3.0 running IIS 10.0"
       OptionSettings:
         - Namespace: 'aws:autoscaling:launchconfiguration'
           OptionName: IamInstanceProfile
-          Value: !Ref InstanceProfile
-  LambdaSSMRole:
-    DependsOn: DotNetECR
+          Value: !Ref EBInstanceProfile
+  SSMAutomationRole:
     Type: AWS::IAM::Role
     Properties:
       Policies:
@@ -363,37 +354,61 @@ Resources:
                   - iam:PassRole
                 Resource: '*'
           PolicyName: aws-quick-start-create-role-policy
-        - PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupEgress
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:UpdateSecurityGroupRuleDescriptionsEgress
-                  - ec2:CreateSecurityGroup
-                  - ec2:UpdateSecurityGroupRuleDescriptionsIngress
-                  - ec2:DescribeInstances
-                  - ec2:DescribeInstanceStatus
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DeleteSecurityGroup
-                Resource: '*'
-          PolicyName: aws-quick-start-create-sg-policy
       Path: /
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
+              Service: 
+                - ssm.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMFullAccess'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSCloudFormationFullAccess'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonEC2FullAccess'
+  LambdaSSMRole:
+    DependsOn: DotNetECR
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeImageScanFindings
+                  - ecr:BatchGetImage
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:BatchDeleteImage
+                  - ecr:BatchDeleteImage
+                  - ecr:ListImages
+                Resource: !GetAtt 'DotNetECR.Arn'
+          PolicyName: aws-quick-start-delete-ecr-images
+        - PolicyDocument:
+           Version: '2012-10-17'
+           Statement:
+             - Effect: Allow
+               Action:
+                 - iam:PassRole
+               Resource: !GetAtt SSMAutomationRole.Arn
+          PolicyName: QS-SSM-PassRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonSSMAutomationRole'
   DotNetECR:
     Type: AWS::ECR::Repository
     Properties: 
-      RepositoryName: !Sub ${AWS::StackName}-ecr-repo
       RepositoryPolicyText: 
         Version: "2012-10-17"
         Statement: 
@@ -457,10 +472,6 @@ Resources:
                   Default: "{{QSS3KeyPrefix}}"
                   Description: "Name of Target S3 Prefix"
               Resources:
-                SecurityGroup:
-                  Type: AWS::EC2::SecurityGroup
-                  Properties:
-                    GroupDescription: DotNetContainer
                 DockerCreateRole: 
                   Type : AWS::IAM::Role
                   Properties:
@@ -475,9 +486,10 @@ Resources:
                         PolicyName: s3-instance-bucket-policy
                     Path: /
                     ManagedPolicyArns:
-                    - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
-                    - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
-                    - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+                    - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+                    - !Sub 'arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy'
+                    - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+                    - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonS3FullAccess"
                     AssumeRolePolicyDocument:
                       Version: "2012-10-17"
                       Statement:
@@ -496,7 +508,7 @@ Resources:
                   Type: "AWS::EC2::Instance"
                   Properties:
                     ImageId: !Ref LatestAmiId
-                    InstanceType: "t2.2xlarge"
+                    InstanceType: "t3.2xlarge"
                     BlockDeviceMappings: 
                       - 
                         DeviceName: "/dev/sda1"
@@ -617,6 +629,7 @@ Resources:
               from botocore.vendored import requests
           
               ssm_cl = boto3.client('ssm')
+              ecr_cl = boto3.client('ecr')
               req_type = event['RequestType']
               print(event)
           
@@ -627,6 +640,7 @@ Resources:
                   doc_name = event['ResourceProperties']['DocumentName']
                   ecr_repo = event['ResourceProperties']['ECRRepoName']
                   stack_name = event['ResourceProperties']['StackName']
+                  ssm_role = event['ResourceProperties']['AutomationAssumeRole']
                   qs_bucket = event['ResourceProperties']['QSS3BucketName']
                   qs_bucket_prefix = event['ResourceProperties']['QSS3KeyPrefix']
           
@@ -639,6 +653,9 @@ Resources:
                           'StackName': [
                               stack_name
                           ],
+                          'AutomationAssumeRole': [
+                              ssm_role
+                          ],
                           'QSS3BucketName': [
                               qs_bucket
                           ],
@@ -650,12 +667,21 @@ Resources:
           
                   cfnresponse.send(event, context, SUCCESS, start_automation, start_automation['AutomationExecutionId'])
               
-              def delete_automation(event):
-                  cfnresponse.send(event, context, SUCCESS, event, 'nothingtodo')
+              def delete_image(event):
+                  ecr_repo = event['ResourceProperties']['ECRRepoName']
+                  delete_image = ecr_cl.batch_delete_image(
+                    repositoryName = ecr_repo,
+                    imageIds=[
+                        {
+                            'imageTag': 'latest'
+                        },
+                    ]
+                  )
+                  cfnresponse.send(event, context, SUCCESS, event, 'Image Deleted')
           
               actions = {
                   'Create': start_ssmautomation,
-                  'Delete': delete_automation,
+                  'Delete': delete_image,
                   'Update': start_ssmautomation
               }
           
@@ -671,10 +697,11 @@ Resources:
     Properties: 
       ServiceToken: !GetAtt LambdaSSMExecute.Arn
       DocumentName: !Ref GenerateDotNetContainer
-      ECRRepoName: !Sub ${AWS::StackName}-ecr-repo
+      ECRRepoName: !Ref DotNetECR
       StackName: !Ref AWS::StackName
       QSS3BucketName: !Ref QSS3BucketName
       QSS3KeyPrefix: !Ref QSS3KeyPrefix
+      AutomationAssumeRole: !GetAtt SSMAutomationRole.Arn
   SSMWaitHandle: 
     Type: AWS::CloudFormation::WaitConditionHandle
   SSMWaitCondition: 
