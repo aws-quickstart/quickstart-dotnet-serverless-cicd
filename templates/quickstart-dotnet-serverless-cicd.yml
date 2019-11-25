@@ -456,7 +456,7 @@ Resources:
           action: aws:createStack
           onFailure: "step:signalfailure"
           inputs:
-            StackName: "DotNetFrameworkContainer"
+            StackName: !Sub "DotNetContainer-${AWS::StackName}"
             Capabilities: [ "CAPABILITY_IAM" ]
             TemplateBody: |
               Description: "Deploy Instance to Create a Container"
