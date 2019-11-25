@@ -10,9 +10,11 @@ Parameters:
     Description: GitHub branch name
   GitHubOwner:
     Type: String
+    Description: UserName for GitHUb
   GitHubOAuthToken:
     Type: String
     NoEcho: true
+    Description: OAuthToken for GitHUb
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: This string can include numbers, lowercase
@@ -48,7 +50,7 @@ Resources:
         Type: NO_CACHE
       Environment:
         Type: WINDOWS_CONTAINER
-        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}-ecr-repo:latest
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${DotNetECR}:latest
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
       ServiceRole:   !GetAtt 
@@ -121,8 +123,8 @@ Resources:
                 Version: 1
               RunOrder: 1
               Configuration:
-                ApplicationName: !Sub ${AWS::StackName}-ElasticBeanstalkAppName
-                EnvironmentName: !Sub ${AWS::StackName}-ElasticBeanstalkEnvName
+                ApplicationName: !Ref ElasticBeanstalkApplication
+                EnvironmentName: !Ref ElasticBeanstalkEnvironment
               InputArtifacts:
                 - Name: BuildArtifact
   CodePipelineServiceRole:
@@ -299,7 +301,6 @@ Resources:
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
-      ApplicationName: !Sub ${AWS::StackName}-EBAppName
       Description: AWS Elastic Beanstalk Sample Application
   ElasticBeanstalkEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
