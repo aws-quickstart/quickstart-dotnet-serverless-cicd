@@ -612,7 +612,7 @@ Resources:
           isEnd: true
           onFailure: Continue
           inputs:
-            StackName: "DotNetFrameworkContainer"
+            StackName: !Sub "DotNetContainer-${AWS::StackName}"
   LambdaSSMExecute:
     DependsOn: LambdaSSMRole
     Type: AWS::Lambda::Function
