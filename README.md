@@ -13,7 +13,7 @@ The Quick Start is for developers who are looking for a deployment pipeline to i
 
 !(Quick Start architecture for .NET Serverless CI/CD on the AWS Cloud](https://d0.awsstatic.com/partner-network/QuickStart/dotnet-serverless-cicd-architecture.png)
 
-For architectural details, best practices, step-by-step instructions, and customization options, see the [deployment guide](https://aws-quickstart.s3.amazonaws.com/quickstart-dotnet-serverless-cicd/doc/dotnet-serverless-cicd-on-the-aws-cloud.pdf)
+For architectural details, best practices, step-by-step instructions, and customization options, see the [deployment guide](https://aws-quickstart.s3.amazonaws.com/quickstart-dotnet-serverless-cicd/doc/dotnet-serverless-cicd-on-the-aws-cloud.pdf).
 
 To post feedback, submit feature ideas, or report bugs, use the **Issues** section of this GitHub repo.
 
