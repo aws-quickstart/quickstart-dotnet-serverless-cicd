@@ -3,6 +3,8 @@
 
 .NET Framework is a managed execution environment for applications that provides memory management, class libraries, versioning, and other software development tools.
 
+![Quick Start Architecture for Solumina MES](https://d0.awsstatic.com/partner-network/QuickStart/dotnet-serverless-cicd-architecture.png){:target="_blank"}
+
 This Quick Start builds a .NET serverless CI/CD (continuous integration and continuous delivery) environment on the Amazon Web Services (AWS) Cloud to provide a pipeline for .NET Framework workloads. It can perform the following functions:
 
 - Fetch the latest source code and save it to a source artifact store.
