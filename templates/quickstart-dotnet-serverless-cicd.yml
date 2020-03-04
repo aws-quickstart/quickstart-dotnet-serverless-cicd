@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Codepipeline for dotnet serverless CI/CD
+Description: This Quick Start deploys CodeBuild, CodePipeline and CodeDeploy for .NET Framework (qs-1qh13h44o)
 Parameters:
   GitHubRepositoryName:
     Type: String
@@ -37,7 +37,6 @@ Parameters:
 Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
-    DependsOn: CodeBuildServiceRole
     Properties:
       Source:
         Type: CODEPIPELINE
@@ -69,9 +68,6 @@ Resources:
     Type: 'AWS::CodePipeline::Pipeline'
     DependsOn: 
       - CodePipelineServiceRole
-      - CodeBuildProject
-      - CodePipelineArtifactStoreBucket
-      - ElasticBeanstalkEnvironment
       - SSMWaitCondition
     Properties:
       RoleArn:  !GetAtt 
@@ -308,7 +304,7 @@ Resources:
     Properties: 
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: "AWS Elastic Beanstalk Environment running .Net Application"
-      SolutionStackName: "64bit Windows Server 2016 v2.3.0 running IIS 10.0"
+      SolutionStackName: "64bit Windows Server 2016 v2.5.0 running IIS 10.0"
       OptionSettings:
         - Namespace: 'aws:autoscaling:launchconfiguration'
           OptionName: IamInstanceProfile
@@ -369,7 +365,6 @@ Resources:
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSCloudFormationFullAccess'
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonEC2FullAccess'
   LambdaSSMRole:
-    DependsOn: DotNetECR
     Type: AWS::IAM::Role
     Properties:
       Policies:
@@ -614,7 +609,6 @@ Resources:
           inputs:
             StackName: !Sub "DotNetContainer-${AWS::StackName}"
   LambdaSSMExecute:
-    DependsOn: LambdaSSMRole
     Type: AWS::Lambda::Function
     Properties:
       Description: Executes SSM Automation Documents
@@ -694,7 +688,6 @@ Resources:
                   print(error_msg)
                   cfnresponse.send(event, context, FAILED, error_msg)
   ExecuteSSMAutomation:
-    DependsOn: LambdaSSMExecute
     Type: Custom::ExecuteSSMAutomation
     Properties: 
       ServiceToken: !GetAtt LambdaSSMExecute.Arn
@@ -714,7 +707,6 @@ Resources:
         Count: 1
     DependsOn: 
       - ExecuteSSMAutomation
-      - SSMWaitHandle
     Properties: 
       Handle: 
         Ref: "SSMWaitHandle"
