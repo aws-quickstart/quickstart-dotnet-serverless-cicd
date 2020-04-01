@@ -22,6 +22,10 @@ Resources:
             default: "aws-quickstart"
             description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
             type: "String"
+          QSS3BucketRegion:
+            default: "us-east-1"
+            description: "The AWS Region where the Quick Start S3 bucket (QSS3BucketName) is hosted. When using your own bucket, you must specify this value."
+            type: "String"
           QSS3KeyPrefix:
             default: "quickstart-dotnet-serverless-cicd/"
             description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
@@ -47,6 +51,10 @@ Resources:
                   Type: "String"
                   Default: "{{QSS3BucketName}}"
                   Description: "Name of Target S3 Bucket"
+                QSS3BucketRegion:
+                  Type: "String"
+                  Default: "{{QSS3BucketRegion}}"
+                  Description: "The AWS Region where the Quick Start S3 bucket (QSS3BucketName) is hosted. When using your own bucket, you must specify this value."
                 QSS3KeyPrefix:
                   Type: "String"
                   Default: "{{QSS3KeyPrefix}}"
@@ -61,7 +69,7 @@ Resources:
                           Statement:
                             - Action:
                                 - s3:GetObject
-                              Resource: !Sub 'arn:${AWS::Partition}:s3:::${QSS3BucketName}/${QSS3KeyPrefix}*'
+                              Resource: !Sub "*"
                               Effect: Allow
                         PolicyName: s3-instance-bucket-policy
                     Path: /
@@ -124,7 +132,17 @@ Resources:
               CloudWatchOutputEnabled: "true"
             Parameters:
               sourceType: "S3"
-              sourceInfo: '{"path": "https://{{QSS3BucketName}}.s3.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
+              sourceInfo:
+                !Sub
+                  - '{"path": "https://${S3Bucket}.s3.${S3Region}.{{URLSuffix}}/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
+                  - S3Bucket: !If 
+                      - UsingDefaultBucket
+                      - !Sub '${QSS3BucketName}-${AWS::Region}'
+                      - !Ref QSS3BucketName
+                    S3Region: !If 
+                      - UsingDefaultBucket
+                      - !Ref AWS::Region
+                      - !Ref QSS3BucketRegion
               commandLine: "docker build -t {{ECRRepoName}}:latest -m 2GB ."
         - name: "PushDockerImagetoECR"
           action: aws:runCommand
