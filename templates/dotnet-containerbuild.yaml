@@ -136,7 +136,7 @@ Resources:
               sourceType: "S3"
               sourceInfo:
                 !Sub
-                  - '{"path": "https://${S3Bucket}.s3.${S3Region}.{{URLSuffix}}/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
+                  - '{"path": "https://${S3Bucket}.s3.${S3Region}.amazonaws.com/{{QSS3KeyPrefix}}scripts/Dockerfile"}'
                   - S3Bucket: !If 
                       - UsingDefaultBucket
                       - !Sub '${QSS3BucketName}-${AWS::Region}'
