@@ -6,7 +6,8 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPref
 
 #Install NuGet CLI
 ENV NUGET_VERSION 4.4.1
-RUN New-Item -Type Directory $Env:ProgramFiles\NuGet; `
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
+    New-Item -Type Directory $Env:ProgramFiles\NuGet; `
     Invoke-WebRequest -UseBasicParsing https://dist.nuget.org/win-x86-commandline/v$Env:NUGET_VERSION/nuget.exe -OutFile $Env:ProgramFiles\NuGet\nuget.exe
 
 # Install VS Test Agent
