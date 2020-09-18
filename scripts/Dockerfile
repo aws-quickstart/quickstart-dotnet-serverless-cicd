@@ -5,10 +5,10 @@ FROM microsoft/dotnet-framework:4.7.2-runtime
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
 #Install NuGet CLI
-ENV NUGET_VERSION 4.4.1
+ENV NUGET_VERSION 5.7.0
 RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
     New-Item -Type Directory $Env:ProgramFiles\NuGet; `
-    Invoke-WebRequest -UseBasicParsing https://dist.nuget.org/win-x86-commandline/v$Env:NUGET_VERSION/nuget.exe -OutFile $Env:ProgramFiles\NuGet\nuget.exe
+    Invoke-WebRequest -UseBasicParsing https://dist.nuget.org/win-x86-commandline/latest/nuget.exe -OutFile $Env:ProgramFiles\NuGet\nuget.exe
 
 # Install VS Test Agent
 RUN Invoke-WebRequest -UseBasicParsing https://download.visualstudio.microsoft.com/download/pr/12210068/8a386d27295953ee79281fd1f1832e2d/vs_TestAgent.exe -OutFile vs_TestAgent.exe; `
