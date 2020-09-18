@@ -18,7 +18,10 @@ Parameters:
   SolutionStack:
     Type: String
     Description: The platform version for the .Net Elastic Beantalk environment, please check documentation for lastest platfrom version. 
-    Default: '64bit Windows Server 2016 v2.5.5 running IIS 10.0' 
+    AllowedValues:
+      - '64bit Windows Server 2016 v2.5.9 running IIS 10.0'
+      - '64bit Windows Server 2019 v2.5.9 running IIS 10.0'
+    Default: '64bit Windows Server 2019 v2.5.9 running IIS 10.0' 
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: This string can include numbers, lowercase
