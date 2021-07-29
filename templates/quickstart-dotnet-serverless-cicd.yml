@@ -19,9 +19,9 @@ Parameters:
     Type: String
     Description: The platform version for the .Net Elastic Beantalk environment, please check documentation for lastest platfrom version. 
     AllowedValues:
-      - '64bit Windows Server 2016 v2.5.9 running IIS 10.0'
-      - '64bit Windows Server 2019 v2.5.9 running IIS 10.0'
-    Default: '64bit Windows Server 2019 v2.5.9 running IIS 10.0' 
+      - '64bit Windows Server 2016 v2.6.8 running IIS 10.0'
+      - '64bit Windows Server 2019 v2.6.8 running IIS 10.0'
+    Default: '64bit Windows Server 2019 v2.6.8 running IIS 10.0' 
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: This string can include numbers, lowercase
@@ -61,7 +61,7 @@ Resources:
       Cache:
         Type: NO_CACHE
       Environment:
-        Type: WINDOWS_CONTAINER
+        Type: WINDOWS_SERVER_2019_CONTAINER
         Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${DotNetECR}:latest
         ComputeType: BUILD_GENERAL1_MEDIUM
         PrivilegedMode: false
@@ -473,7 +473,7 @@ Resources:
               Parameters:
                 LatestAmiId:
                   Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-                  Default: "/aws/service/ami-windows-latest/Windows_Server-2016-English-Core-Containers"
+                  Default: "/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ContainersLatest"
                 QSS3BucketName:
                   Type: "String"
                   Default: "{{QSS3BucketName}}"
