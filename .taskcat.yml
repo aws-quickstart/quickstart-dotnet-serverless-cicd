@@ -1,0 +1,21 @@
+project:
+  name: quickstart-dotnet-serverless-cicd
+  owner: quickstart-eng@amazon.com
+  package_lambda: false
+  regions:
+    - eu-west-1
+    - us-east-1
+    - us-east-2
+    - us-west-2
+tests:
+  dotnet:
+    parameters:
+      GitHubRepositoryName: quickstart-dotnet-serverless-cicd
+      GitHubBranchName: develop
+      GitHubOwner: aws-quickstart
+      GitHubOAuthToken: github-token
+      QSS3BucketName: $[taskcat_autobucket]
+      QSS3BucketRegion: $[taskcat_current_region]
+    regions:
+    - us-east-1
+    template: templates/quickstart-dotnet-serverless-cicd.yml
