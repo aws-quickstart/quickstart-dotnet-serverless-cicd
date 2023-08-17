@@ -1,0 +1,45 @@
+//Include any predeployment steps here, such as signing up for a Marketplace AMI or making any changes to a partner account. If there are no predeployment steps, leave this file empty.
+
+== Predeployment steps
+
+=== Fork the GitHub repository
+
+[arabic]
+. Fork the https://github.com/aws-quickstart/quickstart-dotnet-serverless-cicd[GitHub repository].
+. The repository consists of:
+
+* The quickstart-dotnet-serverless-cicd.yml AWS CloudFormation template
+* BuildSpec.yml, used in CodeBuild
+* Application source code
+
+[arabic, start=3]
+. Obtain the needed inputs to use later in the installation:
+
+[cols="",options="header",]
+|===
+|GitHub details—provide details of your forked GitHub repository
+a|
+GitHubOAuthToken:
+
+* Go to https://github.com/settings/tokens/new.
+* Type “.NET CI/CD” in the Note field.
+* Check the repo box.
+* Check the admin:repo_hook box.
+* Select Generate token.
+
+a|
+GitHubOwner:
+
+* Your GitHub login user name.
+
+a|
+GitHubRepositoryName:
+
+* The name of the forked repository from the first step.
+
+a|
+GitHubBranchName:
+
+* The branch name that you want to use in your fork to trigger the AWS CodePipeline.
+
+|===

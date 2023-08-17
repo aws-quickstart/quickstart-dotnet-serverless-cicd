@@ -1,0 +1,11 @@
+This guide covers the information you need to deploy the {partner-product-name} Partner Solution in the AWS Cloud.
+
+This Partner Solution provides an end-to-end automated CI/CD environment.
+
+This solution will benefit organizations that want to automate their .NET application release pipelines. It provides fully managed and reliable application updates using AWS CodePipeline, AWS CodeBuild, and AWS CodeDeploy. Whenever code is modified within a configured GitHub repository branch, the deployment pipeline automatically creates a custom Microsoft Build Engine (MSBuild) container image to deploy the .NET application.
+
+After deploying the Partner Solution, you can use it to:
+
+* Fetch the latest source code and save it to a source artifact store.
+* Automatically build the application.
+* Deploy the application to the target environment.
