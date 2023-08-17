@@ -1,0 +1,35 @@
+:xrefstyle: short
+
+Deploying this Partner Solution with default parameters builds the following {partner-product-short-name} environment in the
+AWS Cloud.
+
+// Replace this example diagram with your own. Follow our wiki guidelines: https://w.amazon.com/bin/view/AWS_Quick_Starts/Process_for_PSAs/#HPrepareyourarchitecturediagram. Upload your source PowerPoint file to the GitHub {deployment name}/docs/images/ directory in its repository.
+
+[#architecture1]
+.Partner Solution architecture for {partner-product-short-name} on AWS
+image::../docs/deployment_guide/images/image1.png[Architecture]
+
+As shown in <<architecture1>>, this Partner Solution sets up the following:
+
+* An S3 bucket for holding artifacts.
+* An Elastic Beanstalk environment that acts as the target for application code deployments.
+* An AWS Lambda function to execute AWS Systems Manager automation.
+* A Systems Manager automation document.
+* A temporary Amazon Elastic Compute Cloud (Amazon EC2) instance within a virtual private cloud (VPC).
+* A temporary MSBuild container image.
+* An Amazon Elastic Container Registry (Amazon ECR) to hold the MSBuild container image.
+* An AWS CodePipeline with source, build, and deploy stages.
+
+=== Process workflow
+
+As a first prerequisite, AWS CloudFormation provisions a Lambda function that executes the automation document to create a temporary Amazon EC2 Windows instance within a VPC. It then uses the instance to create a temporary MSBuild container image that has the required tools for compiling .NET applications. (This step is automated according to the steps in the https://aws.amazon.com/blogs/devops/extending-aws-codebuild-with-custom-build-environments-for-the-net-framework/[Extending AWS CodeBuild with Custom Build Environments for the .NET Framework] post.) It then pushes the MSBuild container image to Amazon ECR and deletes the Amazon EC2 Windows instance.
+
+As a second prerequisite, AWS CloudFormation creates an AWS Elastic Beanstalk application and environment that acts as a target for deploying the latest application.
+
+AWS CloudFormation then creates an AWS CodePipeline with three stages: source, build, and deploy.
+
+The source stage invokes CodePipeline every time there is a code change in the configured GitHub repository branch. This stage configures GitHub, which integrates the application source code via webhooks. It then fetches the latest GitHub code and places it in an Amazon Simple Storage Service (Amazon S3) bucket. The resulting source code is placed in the Source Artifacts folder.
+
+The build stage of CodePipeline triggers AWS CodeBuild, which uses the MSBuild Windows container image from Amazon ECR to compile the latest source code. AWS CodeBuild uses an associated BuildSpec.yml file to create the Windows container from the image it obtains from Amazon ECR. It then fetches the source code from S3 and uses the container to build the .NET application code. The resulting build package is placed in the Build Artifacts folder in the S3 bucket.
+
+Finally, the deploy stage of CodePipeline triggers AWS CodeDeploy to fetch the build package from the S3 bucket and deploys it to the Elastic Beanstalk environment.

@@ -1,0 +1,11 @@
+// Include any postdeployment steps here, such as steps necessary to test that the deployment was successful. If there are no postdeployment steps, leave this file empty.
+
+== Postdeployment steps
+
+=== Verify the deployment
+
+When deployment completes, go to the CodePipeline console, choose the pipeline created by the Quick Start, and review the steps.
+
+Navigate to the Elastic Beanstalk environment created by AWS CloudFormation, choose the URL for the application, and confirm that your application sample is deployed from GitHub.
+
+Modify the sample application code of your forked GitHub repository, and check in the changes. You will see that CodePipeline starts the CI/CD process and deploys the latest code changes to Elastic Beanstalk.
